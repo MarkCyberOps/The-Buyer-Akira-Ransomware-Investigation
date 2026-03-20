@@ -1,0 +1,207 @@
+// ========================================
+// INITIAL ACCESS – Remote Tool (AnyDesk)
+// ========================================
+DeviceProcessEvents
+| where FileName =~ "AnyDesk.exe"
+| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp desc
+
+
+// ========================================
+// SUSPICIOUS EXECUTION PATH (ProgramData / Public)
+// ========================================
+DeviceProcessEvents
+| where FolderPath has_any ("ProgramData", "Users\\Public")
+| where FileName endswith ".exe"
+| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine
+| order by Timestamp desc
+
+
+// ========================================
+// PAYLOAD DOWNLOAD (PowerShell)
+// ========================================
+DeviceEvents
+| where ActionType == "PowerShellCommand"
+| where AdditionalFields contains "Invoke-WebRequest"
+| project Timestamp, DeviceName, InitiatingProcessAccountName, AdditionalFields
+| order by Timestamp desc
+
+
+// ========================================
+// PAYLOAD DOMAIN (wsync.exe download)
+// ========================================
+DeviceEvents
+| where ActionType == "PowerShellCommand"
+| where AdditionalFields contains "cloud-endpoint.net"
+| project Timestamp, DeviceName, AdditionalFields
+
+
+// ========================================
+// C2 CONNECTIONS (Outbound)
+// ========================================
+DeviceNetworkEvents
+| where RemoteUrl has_any ("cloud-endpoint.net")
+| summarize count() by RemoteUrl, RemoteIP
+| order by count_ desc
+
+
+// ========================================
+// ANYDESK RELAY (C2 / Remote Access)
+// ========================================
+DeviceNetworkEvents
+| where RemoteUrl contains "anydesk"
+| project Timestamp, DeviceName, RemoteUrl, RemoteIP
+
+
+// ========================================
+// PROCESS DISCOVERY (Credential Hunting)
+// ========================================
+DeviceProcessEvents
+| where ProcessCommandLine has_all ("tasklist", "lsass")
+| project Timestamp, DeviceName, ProcessCommandLine
+
+
+// ========================================
+// LSASS ACCESS (Credential Theft)
+// ========================================
+DeviceEvents
+| where ActionType contains "Lsass"
+   or AdditionalFields contains "lsass"
+| project Timestamp, DeviceName, InitiatingProcessFileName, AdditionalFields
+
+
+// ========================================
+// NAMED PIPE (Credential Pipe)
+// ========================================
+DeviceEvents
+| where ActionType == "NamedPipeEvent"
+| where AdditionalFields contains "lsass"
+| project Timestamp, DeviceName, InitiatingProcessFileName, AdditionalFields
+
+
+// ========================================
+// NETWORK SCANNING (Advanced IP Scanner)
+// ========================================
+DeviceProcessEvents
+| where FileName has_any ("scan.exe", "advanced_ip_scanner.exe")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+
+
+// ========================================
+// CHILD PROCESS (Scanner Arguments)
+// ========================================
+DeviceProcessEvents
+| where InitiatingProcessFileName == "scan.exe"
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+
+
+// ========================================
+// NETWORK ENUMERATION (SMB / Share Access)
+// ========================================
+DeviceNetworkEvents
+| where RemotePort == 445
+| where InitiatingProcessFileName in~ ("scan.exe", "powershell.exe", "cmd.exe")
+| summarize count() by RemoteIP
+| order by count_ desc
+
+
+// ========================================
+// LATERAL MOVEMENT (Logons)
+// ========================================
+DeviceLogonEvents
+| where DeviceName =~ "as-srv"
+| where ActionType == "LogonSuccess"
+| project Timestamp, DeviceName, AccountName, LogonType, RemoteIP
+| order by Timestamp desc
+
+
+// ========================================
+// TOOL TRANSFER (bitsadmin)
+// ========================================
+DeviceProcessEvents
+| where FileName =~ "bitsadmin.exe"
+| project Timestamp, DeviceName, ProcessCommandLine
+
+
+// ========================================
+// TOOL TRANSFER (PowerShell fallback)
+// ========================================
+DeviceEvents
+| where ActionType == "PowerShellCommand"
+| where AdditionalFields contains "Invoke-WebRequest"
+| project Timestamp, DeviceName, AdditionalFields
+
+
+// ========================================
+// STAGING TOOL (st.exe)
+// ========================================
+DeviceFileEvents
+| where FileName =~ "st.exe"
+| project Timestamp, DeviceName, FolderPath, SHA256
+
+
+// ========================================
+// EXFIL ARCHIVE (ZIP creation)
+// ========================================
+DeviceFileEvents
+| where FileName endswith ".zip"
+| where FileName contains "exfil"
+| project Timestamp, DeviceName, FileName, FolderPath, InitiatingProcessFileName
+
+
+// ========================================
+// DEFENDER DISABLE (Registry)
+// ========================================
+DeviceProcessEvents
+| where ProcessCommandLine contains "DisableAntiSpyware"
+| project Timestamp, DeviceName, ProcessCommandLine
+
+
+// ========================================
+// DEFENDER DISABLE (PowerShell)
+// ========================================
+DeviceProcessEvents
+| where ProcessCommandLine contains "Set-MpPreference"
+| project Timestamp, DeviceName, ProcessCommandLine
+
+
+// ========================================
+// RANSOMWARE DROP (updater.exe)
+// ========================================
+DeviceFileEvents
+| where FileName =~ "updater.exe"
+| project Timestamp, DeviceName, FolderPath, SHA256, InitiatingProcessFileName
+
+
+// ========================================
+// RANSOM NOTE CREATION
+// ========================================
+DeviceFileEvents
+| where FileName contains "akira_readme"
+| project Timestamp, DeviceName, FolderPath, InitiatingProcessFileName
+
+
+// ========================================
+// SHADOW COPY DELETION
+// ========================================
+DeviceProcessEvents
+| where ProcessCommandLine contains "shadowcopy delete"
+   or ProcessCommandLine contains "vssadmin delete"
+| project Timestamp, DeviceName, ProcessCommandLine
+
+
+// ========================================
+// CLEANUP SCRIPT (Anti-Forensics)
+// ========================================
+DeviceProcessEvents
+| where FileName endswith ".bat"
+| where ProcessCommandLine contains "clean"
+| project Timestamp, DeviceName, ProcessCommandLine
+
+
+// ========================================
+// COMPROMISED HOST IDENTIFICATION
+// ========================================
+DeviceProcessEvents
+| where FileName in~ ("wsync.exe", "scan.exe", "updater.exe", "st.exe")
+| summarize count() by DeviceName
