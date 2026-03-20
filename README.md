@@ -20,7 +20,7 @@ The objective was to investigate the attack end-to-end, identify attacker techni
 
 ## Key Findings
 
-### 🖥️ Compromised Hosts
+### Compromised Hosts
 - `as-pc2` (Initial access & staging)
 - `as-srv` (Lateral movement & ransomware execution)
 
