@@ -1,0 +1,47 @@
+title: Suspicious Execution from ProgramData
+id: buyer-001
+status: experimental
+description: Detects execution of binaries from ProgramData directory
+logsource:
+  category: process_creation
+detection:
+  selection:
+    Image|contains: '\ProgramData\'
+  condition: selection
+level: high
+
+title: Shadow Copy Deletion via WMIC
+id: buyer-002
+status: experimental
+description: Detects deletion of shadow copies
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: 'wmic shadowcopy delete'
+  condition: selection
+level: high
+
+title: PowerShell Download Activity
+id: buyer-003
+status: experimental
+description: Detects PowerShell downloading files from external sources
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains: 'Invoke-WebRequest'
+  condition: selection
+level: medium
+
+title: Archive Creation by Non-Standard Process
+id: buyer-004
+status: experimental
+description: Detects archive creation by suspicious binaries
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith: '.zip'
+  condition: selection
+level: medium
